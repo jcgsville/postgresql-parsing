@@ -1,0 +1,16 @@
+select keyword = ('S' | 's'), ('E' | 'e'), ('L' | 'l'), ('E' | 'e'), ('C' | 'c'), ('T' | 't');
+from keyword = ('F' | 'f'), ('R' | 'r'), ('O' | 'o'), ('M' | 'm');
+
+whitespace char = (' ' | '\n' | '\t');
+whitespace = whitespace char, {whitespace char};
+
+# This isn't valid EBNF, but would be a PITA to represent in EBNF
+identifier = [a-zA-Z];
+all columns = '*' ;
+
+input = { command };
+command = data manipulation command;
+data manipulation command = select command;
+select command = select keyword, whitespace, all columns, whitespace, from keyword, table name;
+
+table name = identifier;
