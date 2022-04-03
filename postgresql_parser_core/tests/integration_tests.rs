@@ -42,12 +42,19 @@ fn basic_select_command() {
 
 #[test]
 fn select_command_extra_spaces() {
-    let parsed_tree = parse_postgresql("select *  from  \nfoobar;");
+    let parsed_tree = parse_postgresql("select *  from  \nfoobar ; ");
     let mut expected_tree = PostgresqlAbstractSyntaxTree::new();
     expected_tree = expected_tree.push_command(Command::DataManipulation(
         DataManipulationCommand::Select(SelectCommand {
             table_name: String::from("foobar"),
         }),
     ));
+    assert_eq!(parsed_tree, expected_tree);
+}
+
+#[test]
+fn invalid_command() {
+    let parsed_tree = parse_postgresql("select *  fromm;");
+    let expected_tree = PostgresqlAbstractSyntaxTree::new();
     assert_eq!(parsed_tree, expected_tree);
 }
