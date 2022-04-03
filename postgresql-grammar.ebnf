@@ -3,14 +3,16 @@ from keyword = ('F' | 'f'), ('R' | 'r'), ('O' | 'o'), ('M' | 'm');
 
 whitespace char = (' ' | '\n' | '\t');
 whitespace = whitespace char, {whitespace char};
+optional whitespace = {whitespace char};
 
 # This isn't valid EBNF, but would be a PITA to represent in EBNF
 identifier = [a-zA-Z];
 all columns = '*' ;
+statement end = ';';
 
-input = { command };
+input = { optional whitespace, command, optional whitespace };
 command = data manipulation command;
 data manipulation command = select command;
-select command = select keyword, whitespace, all columns, whitespace, from keyword, table name;
+select command = select keyword, whitespace, all columns, whitespace, from keyword, whitespace, table name, optional whitespace, statement end;
 
 table name = identifier;

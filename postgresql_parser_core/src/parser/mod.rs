@@ -7,86 +7,186 @@ use ast::EmptyCommand;
 use ast::PostgresqlAbstractSyntaxTree;
 use ast::SelectCommand;
 mod keywords;
+use std::collections::HashMap;
+
+enum ParseCommandResult {
+    Valid(Command, usize),
+    Invalid(usize),
+    EndOfInput,
+}
 
 pub fn parse_postgresql_tokens(tokens: Vec<Token>) -> PostgresqlAbstractSyntaxTree {
     let mut tree = PostgresqlAbstractSyntaxTree::new();
 
     let mut token_idx = 0;
     while token_idx < tokens.len() {
-        match gather_command(&tokens, token_idx) {
-            Some((command, new_idx)) => {
+        match parse_command(&tokens, token_idx) {
+            ParseCommandResult::Valid(command, new_idx) => {
                 tree = tree.push_command(command);
                 token_idx = new_idx;
             }
-            None => {}
+            ParseCommandResult::Invalid(new_idx) => {
+                token_idx = new_idx;
+            }
+            ParseCommandResult::EndOfInput => {
+                return tree;
+            }
         }
     }
 
     return tree;
 }
 
-macro_rules! return_if_gathered_command {
-    ($gather_function:ident, $tokens:ident, $start_idx:ident) => {
-        match $gather_function(&$tokens, $start_idx) {
-            Some(command_and_new_idx) => {
-                return Some(command_and_new_idx);
+type ParseFunction = fn(&Vec<Token>, usize) -> ParseCommandResult;
+
+lazy_static! {
+    static ref COMMAND_PARSERS: HashMap<String, ParseFunction> = {
+        let mut parsers: HashMap<String, ParseFunction> = HashMap::new();
+        parsers.insert(String::from(";"), parse_empty_command);
+        parsers.insert(String::from("select"), parse_select_command);
+        return parsers;
+    };
+}
+
+fn parse_command(tokens: &Vec<Token>, start_idx: usize) -> ParseCommandResult {
+    let idx_after_whitespace = skip_optional_whitespace(tokens, start_idx);
+    return match tokens.get(idx_after_whitespace) {
+        Some(token) => {
+            let lowered = token.value.to_ascii_lowercase();
+            return match COMMAND_PARSERS.get(&lowered) {
+                Some(parse_fn) => return parse_fn(tokens, idx_after_whitespace + 1),
+                None => {
+                    ParseCommandResult::Invalid(skip_invalid_command(tokens, idx_after_whitespace))
+                }
+            };
+        }
+        None => ParseCommandResult::EndOfInput,
+    };
+}
+
+fn skip_invalid_command(tokens: &Vec<Token>, start_idx: usize) -> usize {
+    let mut idx = start_idx;
+    while !token_is_semicolon(tokens.get(idx)) && option_is_some(tokens.get(idx)) {
+        idx += 1;
+    }
+    return idx + 1;
+}
+
+fn skip_optional_whitespace(tokens: &Vec<Token>, start_idx: usize) -> usize {
+    if token_is_whitespace(tokens.get(start_idx)) {
+        return start_idx + 1;
+    }
+    return start_idx;
+}
+
+fn parse_empty_command(_: &Vec<Token>, start_idx: usize) -> ParseCommandResult {
+    return ParseCommandResult::Valid(Command::Empty(EmptyCommand {}), start_idx + 1);
+}
+
+macro_rules! parse_section {
+    ($parse:ident, $tokens:ident, $start_idx:ident) => {
+        match $parse($tokens, $start_idx) {
+            ParseCommandSectionResult::Valid(start_idx, parsed_data) => (start_idx, parsed_data),
+            ParseCommandSectionResult::Invalid => {
+                return ParseCommandResult::Invalid(skip_invalid_command($tokens, $start_idx));
             }
-            None => {}
         }
     };
 }
 
-fn gather_command(tokens: &Vec<Token>, start_idx: usize) -> Option<(Command, usize)> {
-    let start_idx_after_whitespace = match gather_leading_whitespace(&tokens, start_idx) {
-        Some(new_start_idx) => new_start_idx,
-        None => start_idx,
-    };
-    return_if_gathered_command!(gather_empty_command, tokens, start_idx_after_whitespace);
-    return_if_gathered_command!(gather_select_command, tokens, start_idx_after_whitespace);
-    return None;
-}
-
-fn gather_leading_whitespace(tokens: &Vec<Token>, start_idx: usize) -> Option<usize> {
+fn parse_select_command(tokens: &Vec<Token>, start_idx: usize) -> ParseCommandResult {
     let mut idx = start_idx;
-    while token_is_whitespace(tokens.get(idx)) {
-        idx += 1;
-    }
-    return if idx != start_idx { Some(idx) } else { None };
+    let table_name: String;
+    (idx, _) = parse_section!(parse_whitespace, tokens, idx);
+    (idx, _) = parse_section!(parse_star, tokens, idx);
+    (idx, _) = parse_section!(parse_whitespace, tokens, idx);
+    (idx, _) = parse_section!(parse_keyword_from, tokens, idx);
+    (idx, _) = parse_section!(parse_whitespace, tokens, idx);
+    (idx, table_name) = parse_section!(parse_identifier, tokens, idx);
+    idx = skip_optional_whitespace(tokens, idx);
+    (idx, _) = parse_section!(parse_semicolon, tokens, idx);
+    return ParseCommandResult::Valid(
+        Command::DataManipulation(DataManipulationCommand::Select(SelectCommand {
+            table_name: table_name,
+        })),
+        idx,
+    );
 }
 
-fn gather_empty_command(tokens: &Vec<Token>, start_idx: usize) -> Option<(Command, usize)> {
-    if token_is_semicolon(tokens.get(start_idx)) {
-        return Some((Command::Empty(EmptyCommand {}), start_idx + 1));
-    }
-    return None;
+enum ParseCommandSectionResult<TParsedData> {
+    Valid(usize, TParsedData),
+    Invalid,
 }
 
-fn gather_select_command(tokens: &Vec<Token>, start_idx: usize) -> Option<(Command, usize)> {
-    if token_is_keyword(tokens.get(start_idx), keywords::SELECT_KEYWORD)
-        && token_is_whitespace(tokens.get(start_idx + 1))
-        && token_is_star(tokens.get(start_idx + 2))
-        && token_is_whitespace(tokens.get(start_idx + 3))
-        && token_is_keyword(tokens.get(start_idx + 4), keywords::FROM_KEYWORD)
-        && token_is_whitespace(tokens.get(start_idx + 5))
-        && token_is_semicolon(tokens.get(start_idx + 7))
-    {
-        return match tokens.get(start_idx + 6) {
-            Some(table_name_token) => Some((
-                Command::DataManipulation(DataManipulationCommand::Select(SelectCommand {
-                    table_name: table_name_token.value.clone(),
-                })),
-                start_idx + 8,
-            )),
-            None => None,
-        };
-    }
-    return None;
+// Parse fns
+fn parse_star(tokens: &Vec<Token>, idx: usize) -> ParseCommandSectionResult<()> {
+    // For now, we can just use the keyword helper
+    return parse_keyword(tokens, idx, "*");
+}
+
+fn parse_keyword_from(tokens: &Vec<Token>, idx: usize) -> ParseCommandSectionResult<()> {
+    return parse_keyword(tokens, idx, keywords::FROM_KEYWORD);
+}
+
+fn parse_whitespace(tokens: &Vec<Token>, idx: usize) -> ParseCommandSectionResult<()> {
+    return match tokens.get(idx) {
+        Some(token) => {
+            let first_char = token.value.chars().next();
+            match first_char {
+                Some(character) => {
+                    if char_is_whitespace(character) {
+                        ParseCommandSectionResult::Valid(idx + 1, ())
+                    } else {
+                        ParseCommandSectionResult::Invalid
+                    }
+                }
+                None => ParseCommandSectionResult::Invalid,
+            }
+        }
+        None => ParseCommandSectionResult::Invalid,
+    };
+}
+
+fn parse_identifier(tokens: &Vec<Token>, idx: usize) -> ParseCommandSectionResult<String> {
+    return match tokens.get(idx) {
+        Some(token) => {
+            if token.value.len() > 0 {
+                ParseCommandSectionResult::Valid(idx + 1, token.value.clone())
+            } else {
+                ParseCommandSectionResult::Invalid
+            }
+        }
+        None => ParseCommandSectionResult::Invalid,
+    };
+}
+
+fn parse_semicolon(tokens: &Vec<Token>, idx: usize) -> ParseCommandSectionResult<()> {
+    // For now, we can just use the keyword helper
+    return parse_keyword(tokens, idx, ";");
+}
+
+// Parse helpers
+fn parse_keyword(tokens: &Vec<Token>, idx: usize, keyword: &str) -> ParseCommandSectionResult<()> {
+    return match token_is_keyword(tokens.get(idx), keyword) {
+        true => (ParseCommandSectionResult::Valid(idx + 1, ())),
+        false => ParseCommandSectionResult::Invalid,
+    };
 }
 
 fn token_is_keyword(token: Option<&Token>, keyword: &str) -> bool {
     return option_is(token, |token| {
         return token.value.to_ascii_lowercase() == keyword;
     });
+}
+
+fn token_is_str(token: Option<&Token>, test_str: &str) -> bool {
+    return option_is(token, |token| {
+        return token.value == test_str;
+    });
+}
+
+fn token_is_semicolon(token: Option<&Token>) -> bool {
+    return token_is_str(token, ";");
 }
 
 fn token_is_whitespace(token: Option<&Token>) -> bool {
@@ -99,26 +199,19 @@ fn token_is_whitespace(token: Option<&Token>) -> bool {
     });
 }
 
-fn token_is_semicolon(token: Option<&Token>) -> bool {
-    return token_is_str(token, ";");
-}
-
-fn token_is_star(token: Option<&Token>) -> bool {
-    return token_is_str(token, "*");
-}
-
-fn token_is_str(token: Option<&Token>, test_str: &str) -> bool {
-    return option_is(token, |token| {
-        return token.value == test_str;
-    });
-}
-
-fn option_is<T, F>(optional: Option<&T>, test_function: F) -> bool
+fn option_is<T, F>(option: Option<&T>, test_function: F) -> bool
 where
     F: FnOnce(&T) -> bool,
 {
-    return match optional {
+    return match option {
         Some(value) => test_function(value),
+        None => false,
+    };
+}
+
+fn option_is_some<T>(option: Option<&T>) -> bool {
+    return match option {
+        Some(_) => true,
         None => false,
     };
 }
