@@ -13,6 +13,6 @@ statement end = ';';
 input = { optional whitespace, command, optional whitespace };
 command = data manipulation command;
 data manipulation command = select command;
-select command = select keyword, whitespace, all columns, whitespace, from keyword, whitespace, table name, optional whitespace, statement end;
+select command = select keyword, whitespace, all columns, whitespace, from keyword, whitespace, from item, optional whitespace, statement end;
 
-table name = identifier;
+from item = identifier [ '.' identifier ];
