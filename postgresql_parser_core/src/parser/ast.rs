@@ -1,6 +1,6 @@
 #[derive(Debug, PartialEq)]
 pub struct PostgresqlAbstractSyntaxTree {
-    commands: Vec<Command>,
+    pub commands: Vec<Command>,
 }
 
 impl PostgresqlAbstractSyntaxTree {
