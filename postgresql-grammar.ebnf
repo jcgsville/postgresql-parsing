@@ -6,13 +6,19 @@ whitespace = whitespace char, {whitespace char};
 optional whitespace = {whitespace char};
 
 # This isn't valid EBNF, but would be a PITA to represent in EBNF
+# It's also not the actual definition of an identifier for now
 identifier = [a-zA-Z];
-all columns = '*' ;
 statement end = ';';
 
 input = { optional whitespace, command, optional whitespace };
 command = data manipulation command;
 data manipulation command = select command;
-select command = select keyword, whitespace, all columns, whitespace, from keyword, whitespace, from item, optional whitespace, statement end;
+select command = select keyword, whitespace, selected expressions, whitespace, from keyword, whitespace, from item, optional whitespace, statement end;
 
-from item = identifier [ '.' identifier ];
+all columns selected expression = [identifier, '.'], [identifier, '.'], '*';
+column selected expression = [identifier, '.'], [identifier, '.'], identifier;
+selected expression = (all columns selected expression | column selected expression);
+# For now, >= 1 expression is needed
+selected expressions = selected expression, optional whitespace, {',', optional whitespace, selected expression};
+
+from item = [identifier, '.'], identifier;

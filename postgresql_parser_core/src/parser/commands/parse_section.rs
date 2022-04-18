@@ -1,3 +1,4 @@
+#[derive(Debug, PartialEq)]
 pub enum ParseCommandSectionResult<TParsedData> {
     Valid(usize, TParsedData),
     Invalid,
@@ -8,9 +9,9 @@ macro_rules! parse_section {
     ($parse:ident, $tokens:ident, $start_idx:ident) => {
         match $parse($tokens, $start_idx) {
             crate::parser::commands::parse_section::ParseCommandSectionResult::Valid(
-                start_idx,
+                idx_after_section,
                 parsed_data,
-            ) => (start_idx, parsed_data),
+            ) => (idx_after_section, parsed_data),
             crate::parser::commands::parse_section::ParseCommandSectionResult::Invalid => {
                 return crate::parser::parse_command_result::ParseCommandResult::Invalid(
                     crate::parser::utils::skip_invalid_command($tokens, $start_idx),
@@ -24,12 +25,12 @@ macro_rules! parse_section {
 }
 
 macro_rules! parse_section_from_section {
-    ($parse:ident, $tokens:ident, $start_idx:ident) => {
-        match $parse($tokens, $start_idx) {
+    ($parse_result:expr) => {
+        match $parse_result {
             crate::parser::commands::parse_section::ParseCommandSectionResult::Valid(
-                start_idx,
+                idx_after_section,
                 parsed_data,
-            ) => (start_idx, parsed_data),
+            ) => (idx_after_section, parsed_data),
             crate::parser::commands::parse_section::ParseCommandSectionResult::Invalid => {
                 return crate::parser::commands::parse_section::ParseCommandSectionResult::Invalid;
             }

@@ -1,7 +1,7 @@
 #[derive(Clone, Debug, PartialEq)]
 pub struct TokenPosition {
-    pub line: u32,
-    pub column: u32,
+    pub line: usize,
+    pub column: usize,
 }
 
 #[derive(Clone, Debug)]

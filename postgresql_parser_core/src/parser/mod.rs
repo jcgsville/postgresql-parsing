@@ -5,7 +5,7 @@ pub mod parse_command_result;
 use parse_command_result::ParseCommandResult;
 use std::collections::HashMap;
 pub mod commands;
-mod utils;
+pub mod utils;
 use commands::sections::keywords;
 use utils::idx_after_optional_whitespace;
 use utils::skip_invalid_command;

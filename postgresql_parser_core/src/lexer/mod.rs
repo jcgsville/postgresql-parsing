@@ -16,6 +16,7 @@ lazy_static! {
         let mut delimiters: HashSet<char> = HashSet::new();
         delimiters.insert('.');
         delimiters.insert(';');
+        delimiters.insert(',');
         return delimiters;
     };
 }
@@ -38,8 +39,8 @@ pub fn tokenize_postgresql(text: &str) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
     let mut current_token: Option<Token> = None;
     let mut current_token_is_whitespace: bool = false;
-    let mut current_line: u32 = 0;
-    let mut current_column: u32 = 0;
+    let mut current_line: usize = 0;
+    let mut current_column: usize = 0;
 
     for character in text.chars() {
         let changing_between_whitespace_and_non =
