@@ -11,3 +11,14 @@ pub fn parse_dot(tokens: &Vec<Token>, idx: usize) -> ParseCommandSectionResult<(
         empty_parsed_datum,
     );
 }
+
+pub fn parse_non_dot(tokens: &Vec<Token>, idx: usize) -> ParseCommandSectionResult<String> {
+    return parse_simple_token(
+        tokens,
+        idx,
+        |token| return token.value != ".",
+        |token| {
+            return token.value.clone();
+        },
+    );
+}

@@ -10,3 +10,6 @@ use parser::parse_postgresql_tokens;
 pub fn parse_postgresql(text: &str) -> PostgresqlAbstractSyntaxTree {
     return parse_postgresql_tokens(tokenize_postgresql(text));
 }
+
+#[cfg(test)]
+pub mod test_utils;

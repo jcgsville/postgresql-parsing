@@ -82,3 +82,14 @@ where
 pub fn empty_parsed_datum(_: &Token) -> () {
     return ();
 }
+
+// pub fn parse_section_result_is_valid<TParsedData>(
+//     result: ParseCommandSectionResult<TParsedData>,
+//     accept_end_of_input: bool,
+// ) -> bool {
+//     return match result {
+//         ParseCommandSectionResult::Valid(_, _) => true,
+//         ParseCommandSectionResult::Invalid => false,
+//         ParseCommandSectionResult::EndOfInput => accept_end_of_input,
+//     };
+// }
