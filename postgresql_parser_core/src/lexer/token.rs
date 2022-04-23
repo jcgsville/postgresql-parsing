@@ -4,7 +4,7 @@ pub struct TokenPosition {
     pub column: usize,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Token {
     pub position: TokenPosition,
     pub value: String,

@@ -50,19 +50,25 @@ pub enum SelectedExpression {
 // vs table names
 #[derive(Debug, PartialEq)]
 pub struct AllColumnsSelectedExpression {
-    pub schema_name: Option<String>,
-    pub table_name: Option<String>,
+    pub schema_name: Option<Identifier>,
+    pub table_name: Option<Identifier>,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct ColumnSelectedExpression {
-    pub schema_name: Option<String>,
-    pub table_name: Option<String>,
-    pub column_name: String,
+    pub schema_name: Option<Identifier>,
+    pub table_name: Option<Identifier>,
+    pub column_name: Identifier,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct FromItem {
-    pub schema_name: Option<String>,
-    pub table_name: String,
+    pub schema_name: Option<Identifier>,
+    pub table_name: Identifier,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Identifier {
+    pub quoted: bool,
+    pub value: String,
 }

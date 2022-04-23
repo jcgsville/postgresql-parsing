@@ -1,6 +1,7 @@
 use postgresql_parser_core::ast::{
     AllColumnsSelectedExpression, ColumnSelectedExpression, Command, DataManipulationCommand,
-    EmptyCommand, FromItem, PostgresqlAbstractSyntaxTree, SelectCommand, SelectedExpression,
+    EmptyCommand, FromItem, Identifier, PostgresqlAbstractSyntaxTree, SelectCommand,
+    SelectedExpression,
 };
 use postgresql_parser_core::parse_postgresql;
 
@@ -35,7 +36,10 @@ fn basic_select_command() {
             SelectCommand {
                 from_item: FromItem {
                     schema_name: None,
-                    table_name: String::from("foobar"),
+                    table_name: Identifier {
+                        quoted: false,
+                        value: String::from("foobar"),
+                    },
                 },
                 selected_expressions: vec![SelectedExpression::AllColumns(
                     AllColumnsSelectedExpression {
@@ -56,7 +60,10 @@ fn select_command_extra_spaces() {
             SelectCommand {
                 from_item: FromItem {
                     schema_name: None,
-                    table_name: String::from("foobar"),
+                    table_name: Identifier {
+                        quoted: false,
+                        value: String::from("foobar"),
+                    },
                 },
                 selected_expressions: vec![SelectedExpression::AllColumns(
                     AllColumnsSelectedExpression {
@@ -76,8 +83,14 @@ fn select_command_table_schema() {
         vec![Command::DataManipulation(DataManipulationCommand::Select(
             SelectCommand {
                 from_item: FromItem {
-                    schema_name: Some(String::from("foo")),
-                    table_name: String::from("bar"),
+                    schema_name: Some(Identifier {
+                        quoted: false,
+                        value: String::from("foo"),
+                    }),
+                    table_name: Identifier {
+                        quoted: false,
+                        value: String::from("bar"),
+                    },
                 },
                 selected_expressions: vec![SelectedExpression::AllColumns(
                     AllColumnsSelectedExpression {
@@ -93,27 +106,48 @@ fn select_command_table_schema() {
 #[test]
 fn select_multi_complex_columns() {
     test_parse(
-        "select firstname,public.teacher.lastname , teacher.* from public.teacher;",
+        "select firstname,public.\"1-teacher两\".lastname , teacher.* from \"public\".teacher;",
         vec![Command::DataManipulation(DataManipulationCommand::Select(
             SelectCommand {
                 from_item: FromItem {
-                    schema_name: Some(String::from("public")),
-                    table_name: String::from("teacher"),
+                    schema_name: Some(Identifier {
+                        quoted: true,
+                        value: String::from("public"),
+                    }),
+                    table_name: Identifier {
+                        quoted: false,
+                        value: String::from("teacher"),
+                    },
                 },
                 selected_expressions: vec![
                     SelectedExpression::Column(ColumnSelectedExpression {
                         schema_name: None,
                         table_name: None,
-                        column_name: String::from("firstname"),
+                        column_name: Identifier {
+                            quoted: false,
+                            value: String::from("firstname"),
+                        },
                     }),
                     SelectedExpression::Column(ColumnSelectedExpression {
-                        schema_name: Some(String::from("public")),
-                        table_name: Some(String::from("teacher")),
-                        column_name: String::from("lastname"),
+                        schema_name: Some(Identifier {
+                            quoted: false,
+                            value: String::from("public"),
+                        }),
+                        table_name: Some(Identifier {
+                            quoted: true,
+                            value: String::from("1-teacher两"),
+                        }),
+                        column_name: Identifier {
+                            quoted: false,
+                            value: String::from("lastname"),
+                        },
                     }),
                     SelectedExpression::AllColumns(AllColumnsSelectedExpression {
                         schema_name: None,
-                        table_name: Some(String::from("teacher")),
+                        table_name: Some(Identifier {
+                            quoted: false,
+                            value: String::from("teacher"),
+                        }),
                     }),
                 ],
             },
@@ -122,19 +156,25 @@ fn select_multi_complex_columns() {
 }
 
 #[test]
-fn todo_prevent_reserved_word_identifiers() {
+fn todo_prevent_reserved_word_unquoted_identifiers() {
     test_parse(
         "select from from from;",
         vec![Command::DataManipulation(DataManipulationCommand::Select(
             SelectCommand {
                 from_item: FromItem {
                     schema_name: None,
-                    table_name: String::from("from"),
+                    table_name: Identifier {
+                        quoted: false,
+                        value: String::from("from"),
+                    },
                 },
                 selected_expressions: vec![SelectedExpression::Column(ColumnSelectedExpression {
                     schema_name: None,
                     table_name: None,
-                    column_name: String::from("from"),
+                    column_name: Identifier {
+                        quoted: false,
+                        value: String::from("from"),
+                    },
                 })],
             },
         ))],
@@ -172,15 +212,16 @@ fn select_invalid_trailing_dot_in_expression() {
 }
 
 #[test]
-fn select_invalid_identifier_in_expression() {
-    // Yes, this is valid postgresql.
-    // For now my grammar doesn't support it.
-    test_parse("select 123 from foo;", vec![]);
+fn select_invalid_unquoted_identifier_in_expression() {
+    test_parse("select 1bar from foo;", vec![]);
 }
 
 #[test]
-fn select_invalid_identifier_in_from_item() {
-    // Yes, this is valid postgresql.
-    // For now my grammar doesn't support it.
-    test_parse("select * from foo1;", vec![]);
+fn select_invalid_unquoted_identifier_in_from_item() {
+    test_parse("select * from 1foo;", vec![]);
+}
+
+#[test]
+fn select_invalid_unclosed_quoted_identifier() {
+    test_parse("select * from \"foo;", vec![]);
 }

@@ -2,8 +2,12 @@ use crate::lexer::token::Token;
 use crate::parser::commands::parse_section::ParseCommandSectionResult;
 use crate::parser::commands::sections::dot::{parse_dot, parse_non_dot};
 
-// This version only cares that the values are non-dots.
-// Future version should check for star or identifier
+pub fn validate_separated_values_len(separated_values: &Vec<String>, max_len: usize) {
+    if separated_values.len() > max_len || separated_values.len() == 0 {
+        panic!("Received vector of unexpected length from parse_dot_separated_value");
+    }
+}
+
 pub fn parse_dot_separated_value(
     tokens: &Vec<Token>,
     start_idx: usize,

@@ -1,13 +1,17 @@
 use crate::lexer::token::Token;
 use crate::parser::ast::{
-    AllColumnsSelectedExpression, ColumnSelectedExpression, SelectedExpression,
+    AllColumnsSelectedExpression, ColumnSelectedExpression, Identifier, SelectedExpression,
 };
 use crate::parser::commands::parse_section::{
     parse_section_from_section, ParseCommandSectionResult,
 };
 use crate::parser::commands::sections::comma::parse_comma;
-use crate::parser::commands::sections::dot_separated_value::parse_dot_separated_value;
-use crate::parser::commands::sections::identifier::is_identifier;
+use crate::parser::commands::sections::dot_separated_value::{
+    parse_dot_separated_value, validate_separated_values_len,
+};
+use crate::parser::commands::sections::identifier::{
+    parse_identifier_token_value, SimpleParseResult,
+};
 use crate::parser::utils::idx_after_optional_whitespace;
 
 fn parse_selected_expression(
@@ -16,21 +20,33 @@ fn parse_selected_expression(
 ) -> ParseCommandSectionResult<SelectedExpression> {
     let (idx_after, separated_values) =
         parse_section_from_section!(parse_dot_separated_value(tokens, start_idx, 2));
-    if separated_values.len() > 3 {
-        panic!("Received unexpectedly long vector from parse_dot_separated_value");
+    validate_separated_values_len(&separated_values, 3);
+
+    let mut column_is_star = false;
+
+    let mut identifiers: Vec<Identifier> = Vec::new();
+    for (idx, value) in separated_values.iter().enumerate() {
+        match parse_identifier_token_value(&value) {
+            SimpleParseResult::Valid(identifier) => identifiers.push(identifier),
+            SimpleParseResult::Invalid => {
+                if idx == separated_values.len() - 1 && value == "*" {
+                    column_is_star = true
+                } else {
+                    return ParseCommandSectionResult::Invalid;
+                }
+            }
+        }
     }
 
-    let mut schema_name: Option<String> = None;
-    let mut table_name: Option<String> = None;
-    if separated_values.len() == 3 {
-        schema_name = Some(separated_values.get(0).unwrap().clone());
-        table_name = Some(separated_values.get(1).unwrap().clone());
-    } else if separated_values.len() == 2 {
-        table_name = Some(separated_values.get(0).unwrap().clone())
-    };
-
-    let column = separated_values.last().unwrap().clone();
-    if column == "*" {
+    if column_is_star {
+        let mut schema_name: Option<Identifier> = None;
+        let mut table_name: Option<Identifier> = None;
+        if identifiers.len() == 2 {
+            schema_name = Some(identifiers.get(0).unwrap().clone());
+            table_name = Some(identifiers.last().unwrap().clone());
+        } else if identifiers.len() == 1 {
+            table_name = Some(identifiers.last().unwrap().clone());
+        }
         return ParseCommandSectionResult::Valid(
             idx_after,
             SelectedExpression::AllColumns(AllColumnsSelectedExpression {
@@ -38,17 +54,25 @@ fn parse_selected_expression(
                 table_name: table_name,
             }),
         );
-    } else if is_identifier(&column) {
-        return ParseCommandSectionResult::Valid(
-            idx_after,
-            SelectedExpression::Column(ColumnSelectedExpression {
-                schema_name: schema_name,
-                table_name: table_name,
-                column_name: column,
-            }),
-        );
     }
-    return ParseCommandSectionResult::Invalid;
+
+    let mut schema_name: Option<Identifier> = None;
+    let mut table_name: Option<Identifier> = None;
+    if identifiers.len() == 3 {
+        schema_name = Some(identifiers.get(0).unwrap().clone());
+        table_name = Some(identifiers.get(1).unwrap().clone());
+    } else if separated_values.len() == 2 {
+        table_name = Some(identifiers.get(0).unwrap().clone())
+    };
+    let column = identifiers.last().unwrap().clone();
+    return ParseCommandSectionResult::Valid(
+        idx_after,
+        SelectedExpression::Column(ColumnSelectedExpression {
+            schema_name: schema_name,
+            table_name: table_name,
+            column_name: column,
+        }),
+    );
 }
 
 pub fn parse_selected_expressions(
@@ -91,7 +115,10 @@ mod tests {
                 vec![SelectedExpression::Column(ColumnSelectedExpression {
                     schema_name: None,
                     table_name: None,
-                    column_name: String::from("firstname")
+                    column_name: Identifier {
+                        quoted: false,
+                        value: String::from("firstname")
+                    }
                 })]
             )
         );
@@ -108,8 +135,14 @@ mod tests {
                 3,
                 vec![SelectedExpression::Column(ColumnSelectedExpression {
                     schema_name: None,
-                    table_name: Some(String::from("teacher")),
-                    column_name: String::from("firstname")
+                    table_name: Some(Identifier {
+                        quoted: false,
+                        value: String::from("teacher")
+                    }),
+                    column_name: Identifier {
+                        quoted: false,
+                        value: String::from("firstname")
+                    }
                 })]
             )
         );
@@ -125,9 +158,18 @@ mod tests {
             ParseCommandSectionResult::Valid(
                 5,
                 vec![SelectedExpression::Column(ColumnSelectedExpression {
-                    schema_name: Some(String::from("public")),
-                    table_name: Some(String::from("teacher")),
-                    column_name: String::from("firstname")
+                    schema_name: Some(Identifier {
+                        quoted: false,
+                        value: String::from("public")
+                    }),
+                    table_name: Some(Identifier {
+                        quoted: false,
+                        value: String::from("teacher")
+                    }),
+                    column_name: Identifier {
+                        quoted: false,
+                        value: String::from("firstname")
+                    }
                 })]
             )
         );
@@ -158,7 +200,10 @@ mod tests {
                 vec![SelectedExpression::AllColumns(
                     AllColumnsSelectedExpression {
                         schema_name: None,
-                        table_name: Some(String::from("teacher")),
+                        table_name: Some(Identifier {
+                            quoted: false,
+                            value: String::from("teacher")
+                        }),
                     }
                 )]
             )
@@ -176,8 +221,14 @@ mod tests {
                 5,
                 vec![SelectedExpression::AllColumns(
                     AllColumnsSelectedExpression {
-                        schema_name: Some(String::from("public")),
-                        table_name: Some(String::from("teacher")),
+                        schema_name: Some(Identifier {
+                            quoted: false,
+                            value: String::from("public")
+                        }),
+                        table_name: Some(Identifier {
+                            quoted: false,
+                            value: String::from("teacher")
+                        }),
                     }
                 )]
             )
@@ -197,12 +248,18 @@ mod tests {
                     SelectedExpression::Column(ColumnSelectedExpression {
                         schema_name: None,
                         table_name: None,
-                        column_name: String::from("firstname")
+                        column_name: Identifier {
+                            quoted: false,
+                            value: String::from("firstname")
+                        }
                     }),
                     SelectedExpression::Column(ColumnSelectedExpression {
                         schema_name: None,
                         table_name: None,
-                        column_name: String::from("lastname")
+                        column_name: Identifier {
+                            quoted: false,
+                            value: String::from("lastname")
+                        }
                     }),
                     SelectedExpression::AllColumns(AllColumnsSelectedExpression {
                         schema_name: None,
@@ -240,16 +297,31 @@ mod tests {
                     SelectedExpression::Column(ColumnSelectedExpression {
                         schema_name: None,
                         table_name: None,
-                        column_name: String::from("firstname")
+                        column_name: Identifier {
+                            quoted: false,
+                            value: String::from("firstname")
+                        }
                     }),
                     SelectedExpression::Column(ColumnSelectedExpression {
-                        schema_name: Some(String::from("public")),
-                        table_name: Some(String::from("teacher")),
-                        column_name: String::from("lastname")
+                        schema_name: Some(Identifier {
+                            quoted: false,
+                            value: String::from("public")
+                        }),
+                        table_name: Some(Identifier {
+                            quoted: false,
+                            value: String::from("teacher")
+                        }),
+                        column_name: Identifier {
+                            quoted: false,
+                            value: String::from("lastname")
+                        }
                     }),
                     SelectedExpression::AllColumns(AllColumnsSelectedExpression {
                         schema_name: None,
-                        table_name: Some(String::from("teacher"))
+                        table_name: Some(Identifier {
+                            quoted: false,
+                            value: String::from("teacher")
+                        })
                     })
                 ]
             )
@@ -269,12 +341,18 @@ mod tests {
                     SelectedExpression::Column(ColumnSelectedExpression {
                         schema_name: None,
                         table_name: None,
-                        column_name: String::from("firstname")
+                        column_name: Identifier {
+                            quoted: false,
+                            value: String::from("firstname")
+                        }
                     }),
                     SelectedExpression::Column(ColumnSelectedExpression {
                         schema_name: None,
                         table_name: None,
-                        column_name: String::from("lastname")
+                        column_name: Identifier {
+                            quoted: false,
+                            value: String::from("lastname")
+                        }
                     })
                 ]
             )
