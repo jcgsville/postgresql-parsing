@@ -5,9 +5,15 @@ whitespace char = (' ' | '\n' | '\t');
 whitespace = whitespace char, {whitespace char};
 optional whitespace = {whitespace char};
 
-# This isn't valid EBNF, but would be a PITA to represent in EBNF
-# It's also not the actual definition of an identifier for now
-identifier = [a-zA-Z];
+unquoted identifier = ('_' | alphabetic char), {('_' | '$' | alphabetic char | digit)};
+alphabetic char = ? any character a-z or A-Z or with a diacritic or non-latin letters ?;
+digit = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9';
+quoted identifier = '"', any character, {any character}, '"';
+# Note that is literally any character, including things like newlines
+# You can, in fact, have an identifier with a newline.
+any character = ? any character ?
+identifier = (unquoted identifier | quoted identifier);
+
 statement end = ';';
 
 input = { optional whitespace, command, optional whitespace };
