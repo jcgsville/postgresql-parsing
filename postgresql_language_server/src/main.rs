@@ -11,7 +11,7 @@ struct Backend {
 impl LanguageServer for Backend {
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
         let capabilities = ServerCapabilities {
-            text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::INCREMENTAL)),
+            text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
             selection_range_provider: None,
             hover_provider: None,
             completion_provider: None,
@@ -50,7 +50,7 @@ impl LanguageServer for Backend {
     async fn initialized(&self, _: InitializedParams) {
         // println!("yay init");
         self.client
-            .log_message(MessageType::INFO, "server initialized2!")
+            .log_message(MessageType::INFO, "server was in fact initialized!")
             .await;
     }
 
@@ -58,31 +58,42 @@ impl LanguageServer for Backend {
         Ok(())
     }
 
-    async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        let _ = params;
-        self.client
-            .log_message(MessageType::INFO, "opened!")
-            .await;
-        // println!("params text {}", params.text.unwrap());
-        // warn!("Got a textDocument/didSave notification, but it is not implemented");
-    }
-
-    // async fn did_change(&self, params: DidChangeTextDocumentParams) {
+    // async fn did_open(&self, params: DidOpenTextDocumentParams) {
     //     let _ = params;
-    //     self.client
-    //         .log_message(MessageType::INFO, "changed!")
-    //         .await;
-    //     println!("params content {:?}", params.content_changes);
+    //     self.client.log_message(MessageType::INFO, "opened!").await;
+    //     // println!("params text {}", params.text.unwrap());
     //     // warn!("Got a textDocument/didSave notification, but it is not implemented");
     // }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         let _ = params;
+        self.client.log_message(MessageType::INFO, "saved!").await;
         self.client
-            .log_message(MessageType::INFO, "saved!")
+            .publish_diagnostics(
+                params.text_document.uri,
+                vec![Diagnostic {
+                    range: Range {
+                        start: Position {
+                            line: 0,
+                            character: 2,
+                        },
+                        end: Position {
+                            line: 0,
+                            character: 4,
+                        },
+                    },
+                    severity: Some(DiagnosticSeverity::WARNING),
+                    code: None,
+                    code_description: None,
+                    source: Some(String::from("Chandler")),
+                    message: String::from("Hello, world!"),
+                    related_information: None,
+                    tags: None,
+                    data: None,
+                }],
+                None,
+            )
             .await;
-        // println!("params text {}", params.text.unwrap());
-        // warn!("Got a textDocument/didSave notification, but it is not implemented");
     }
 }
 
